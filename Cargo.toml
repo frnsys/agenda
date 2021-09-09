@@ -11,7 +11,7 @@ chrono-tz = "0.5.3"
 anyhow = "1.0.40"
 thiserror = "1.0.24"
 rrule = "0.5.9"
-colored = "2"
+ansi_term = "0.12"
 
 [dependencies.ical]
 version = "0.7.0"

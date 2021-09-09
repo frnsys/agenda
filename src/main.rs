@@ -7,9 +7,9 @@ use anyhow::Error;
 use event::Event;
 use chrono::{DateTime, Date, Duration, Utc, Local, Datelike};
 use chrono_tz::UTC;
-use colored::*;
 use std::process::Command;
 use std::collections::{HashSet,HashMap};
+use ansi_term::{Colour,Style};
 
 const FORECAST_DAYS: i64 = 5;
 const REMINDER_MINUTES: i64 = 10;
@@ -78,43 +78,55 @@ fn view() -> Result<(), Error> {
         events.push(event);
     }
 
+    let date_style = Style::new().on(
+        Colour::RGB(36, 34, 186)).fg(Colour::RGB(255,255,255));
+    let summary_style = Style::new().underline();
+    let desc_style = Style::new().fg(Colour::RGB(191, 190, 212));
     for i in 0..FORECAST_DAYS {
         let date = (now + Duration::days(i)).date();
-        let date_str = date.format("%a %b %e").to_string().bold();
-        if i == 0 {
-            println!("{}\tToday", date_str);
+        let date_str = date.format("%a %b %e").to_string();
+        let date_str = if i == 0 {
+            format!("{}\tToday", date_str)
         } else if i == 1 {
-            println!("\n{}\tTomorrow", date_str);
+            format!("{}\tTomorrow", date_str)
         } else {
-            println!("\n{}\t{} days", date_str, i);
-        }
+            format!("{}\t{} days", date_str, i)
+        };
+        println!("{}", date_style.paint(date_str));
+
         match byday.get(&date) {
             Some(events) => {
                 for event in events {
                     // Print out single event
-                    let start_str = event.start.with_timezone(&Local).format("%a %b %e %H:%M");
-                    let end_str_fmt = if event.start.day() == event.end.day() {
-                        "%H:%M"
+                    if (event.end - event.start).num_hours() == 24 {
+                        println!("{}", Colour::Green.paint("All Day"));
                     } else {
-                        "%a %b %e %H:%M"
-                    };
-                    let end_str = event.end.with_timezone(&Local).format(end_str_fmt);
-                    println!("{}-{}", start_str.to_string().green(), end_str.to_string().green());
+                        let start_str = event.start.with_timezone(&Local).format("%H:%M");
+                        let end_str_fmt = if event.start.day() == event.end.day() {
+                            "%H:%M"
+                        } else {
+                            "%a %b %e %H:%M"
+                        };
+                        let end_str = event.end.with_timezone(&Local).format(end_str_fmt);
+                        println!("{} - {}",
+                                 Colour::Green.paint(start_str.to_string()),
+                                 Colour::Green.paint(end_str.to_string()));
+                    }
                     if let Some(summary) = &event.summary {
-                        println!("{}", summary.yellow());
+                        println!("{}", summary_style.paint(summary));
                     }
                     if let Some(location) = &event.location {
                         println!("{}", location);
                     }
                     if let Some(description) = &event.description {
                         // Unescape line breaks...is this the best way to do it?
-                        println!("{}", description.replace("\\n", "\n"));
+                        println!("{}", desc_style.paint(description.replace("\\n", "\n")));
                     }
                     println!("");
                 }
             },
             None => {
-                println!("No events");
+                println!("No events\n");
             }
         }
     }
