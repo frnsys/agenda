@@ -20,3 +20,5 @@ features = ["ical"]
 
 [profile.release]
 lto = "thin"
+codegen-units = 1   # Reduce number of codegen units to increase optimizations.
+panic = 'abort'     # Abort on panic
