@@ -6,14 +6,17 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ical = "0.7.0"
 chrono = "0.4.19"
 chrono-tz = "0.5.3"
 anyhow = "1.0.40"
 thiserror = "1.0.24"
 rrule = "0.5.9"
 colored = "2"
-notify-rust = "4"
+
+[dependencies.ical]
+version = "0.7.0"
+default-features = false
+features = ["ical"]
 
 [profile.release]
 lto = "thin"

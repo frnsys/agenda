@@ -8,8 +8,8 @@ use event::Event;
 use chrono::{DateTime, Date, Duration, Utc, Local, Datelike};
 use chrono_tz::UTC;
 use colored::*;
+use std::process::Command;
 use std::collections::{HashSet,HashMap};
-use notify_rust::Notification;
 
 const FORECAST_DAYS: i64 = 5;
 const REMINDER_MINUTES: i64 = 10;
@@ -129,10 +129,10 @@ fn remind(reminded: &mut HashSet<String>) -> Result<(), Error> {
     for event in upcoming {
         let id = event.id();
         if !reminded.contains(&id) {
-            Notification::new()
-                .summary(&event.start.with_timezone(&Local).format("%H:%M").to_string())
-                .body(&event.summary.unwrap_or("<none>".to_string()))
-                .show()?;
+            Command::new("notify-send")
+                .arg(&event.start.with_timezone(&Local).format("%H:%M").to_string())
+                .arg(&event.summary.unwrap_or("<none>".to_string()))
+                .spawn()?;
             reminded.insert(id);
         }
     }
