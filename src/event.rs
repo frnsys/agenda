@@ -1,15 +1,14 @@
 use rrule::RRuleSet;
-use super::moment::Moment;
 use std::cmp::{Ordering, Ord};
-use chrono::{TimeZone, Utc};
+use chrono::{DateTime, Duration, TimeZone, Utc};
 
 #[derive(Debug)]
 pub struct Event {
     pub summary: Option<String>,
     pub location: Option<String>,
     pub description: Option<String>,
-    pub start: Moment,
-    pub end: Moment,
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
     pub rrule: Option<RRuleSet>
 }
 
@@ -19,10 +18,19 @@ impl Event {
             summary: None,
             location: None,
             description: None,
-            start: Moment::DateTime(Utc.timestamp(0, 0)),
-            end: Moment::DateTime(Utc.timestamp(0, 0)),
+            start: Utc.timestamp(0, 0),
+            end: Utc.timestamp(0, 0),
             rrule: None
         }
+    }
+
+    pub fn duration(&self) -> Duration {
+        self.end - self.start
+    }
+
+    pub fn id(&self) -> String {
+        format!("{}{}{}", self.start, self.end,
+                self.summary.as_ref().unwrap_or(&"<none>".to_string()))
     }
 }
 

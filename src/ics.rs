@@ -4,7 +4,9 @@ use std::io::BufReader;
 use ical::IcalParser;
 use rrule::RRuleSet;
 use anyhow::Error;
-use super::moment::Moment;
+use thiserror::Error;
+use chrono_tz::{Tz, UTC};
+use chrono::{DateTime, TimeZone, Utc, Local};
 use super::event::Event;
 
 // Pull out the timezone, if any, from property parameters
@@ -16,6 +18,47 @@ fn get_tz(maybe_params: &Option<Vec<(String, Vec<String>)>>) -> Option<String> {
         }
     }
     None
+}
+
+
+#[derive(Error, Debug)]
+pub enum DateTimeParseError {
+    #[error("Failed to parse date component")]
+    ParseDateComponent(#[from] std::num::ParseIntError),
+
+    #[error("Failed to parse datetime")]
+    ParseDateTime(#[from] chrono::format::ParseError),
+}
+
+
+pub fn parse_datetime(datetime: &str, time_zone: Option<String>) -> Result<DateTime<Utc>, DateTimeParseError> {
+    let is_utc = datetime.chars().last().unwrap() == 'Z';
+    let tz: Tz = if is_utc {
+        UTC
+    } else {
+        match time_zone {
+            Some(tz) => tz.parse().unwrap(),
+            None => UTC // default to UTC
+        }
+    };
+    if datetime.contains("T") {
+        let fmt = if is_utc {
+            "%Y%m%dT%H%M%SZ"
+        } else {
+            "%Y%m%dT%H%M%S"
+        };
+        let dt = tz.datetime_from_str(datetime, fmt)?.with_timezone(&Utc);
+        Ok(dt)
+    } else {
+        // Handle these dates (which are all-day events)
+        // as local timezone, so they properly span the full day.
+        let dt = Local.ymd(
+            datetime[0..4].parse()?,
+            datetime[4..6].parse()?,
+            datetime[6..8].parse()?
+        ).and_hms(0, 0, 0).with_timezone(&Utc);
+        Ok(dt)
+    }
 }
 
 // TODO iterator of results
@@ -35,33 +78,33 @@ pub fn parse_ics<P>(ics_path: P) -> Result<Vec<Event>, Error> where P: AsRef<Pat
                     "LOCATION" => event.location = prop.value,
                     "DTSTART" => {
                         let dt_str = prop.value.unwrap();
-                        event.start = Moment::parse(&dt_str, get_tz(&prop.params))?;
+                        event.start = parse_datetime(&dt_str, get_tz(&prop.params))?;
                     },
                     "DTEND" => {
                         let dt_str = prop.value.unwrap();
-                        event.end = Moment::parse(&dt_str, get_tz(&prop.params))?;
+                        event.end = parse_datetime(&dt_str, get_tz(&prop.params))?;
                     },
                     "RRULE" => {
                         // Kind of hacky, but the `rrule` crate doesn't provide
                         // a cleaner way of mixing string parsing and manually setting options.
-                        let dtstart = event.start.to_string();
+                        let dtstart = event.start.format("%Y%m%dT%H%M%SZ").to_string();
                         let rrule_str = format!("DTSTART:{}\n{}", dtstart, prop.value.unwrap());
                         let rrule: RRuleSet = rrule_str.parse()?;
                         event.rrule = Some(rrule);
                     },
                     "EXDATE" => {
                         let dt_str = prop.value.unwrap();
-                        let ex_date = Moment::parse(&dt_str, get_tz(&prop.params))?;
+                        let ex_date = parse_datetime(&dt_str, get_tz(&prop.params))?;
                         if let Some(rrule) = &mut event.rrule {
-                            rrule.exdate(ex_date.into());
+                            rrule.exdate(ex_date.with_timezone(&UTC));
                         }
                     },
                     "RECURRENCE-ID" => {
                         // TODO how to link back to the original event?
                         let dt_str = prop.value.unwrap();
-                        let r_date = Moment::parse(&dt_str, get_tz(&prop.params))?;
+                        let r_date = parse_datetime(&dt_str, get_tz(&prop.params))?;
                         match &mut event.rrule {
-                            Some(rrule) => rrule.rdate(r_date.into()),
+                            Some(rrule) => rrule.rdate(r_date.with_timezone(&UTC)),
                             None => {
                                 // TODO the problem right now is these show up as events
                                 // separate from the event that has the actual rrule attached to
@@ -77,4 +120,26 @@ pub fn parse_ics<P>(ics_path: P) -> Result<Vec<Event>, Error> where P: AsRef<Pat
         }
     }
     Ok(events)
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_parse_datetimes() {
+        let d = "20211029";
+        let expected = Utc.ymd(2021, 10, 29).and_hms(0, 0, 0);
+        assert_eq!(parse_datetime(d, None).unwrap(), expected);
+
+        let d = "20210524T024254Z";
+        let expected = Utc.ymd(2021, 5, 24).and_hms(2, 42, 54);
+        assert_eq!(parse_datetime(d, None).unwrap(), expected);
+
+        let d = "20200427T144500";
+        let tz = "America/New_York".to_string();
+        let expected = Utc.ymd(2020, 4, 27).and_hms(18, 45, 00);
+        assert_eq!(parse_datetime(d, Some(tz)).unwrap(), expected);
+    }
 }
