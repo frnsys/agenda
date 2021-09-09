@@ -11,6 +11,10 @@ use colored::*;
 use std::collections::{HashSet,HashMap};
 use notify_rust::Notification;
 
+const FORECAST_DAYS: i64 = 5;
+const REMINDER_MINUTES: i64 = 10;
+const REMINDER_REFRESH: u64 = 120; // seconds
+
 fn load_events() -> Result<Vec<Event>, Error>  {
     let mut events = vec![];
     for path in fs::read_dir("/home/ftseng/.calendar")? {
@@ -65,9 +69,8 @@ fn load_upcoming_events(since: DateTime<Utc>, forecast: Duration) -> Result<Vec<
 fn view() -> Result<(), Error> {
     // Treat "now" as the start of today (local time, but as UTC),
     // b/c if we're e.g. 1 minute into an event we still want to see it
-    let forecast_days = 5;
     let now = Local::today().and_hms(0, 0, 0).with_timezone(&Utc);
-    let upcoming = load_upcoming_events(now, Duration::days(forecast_days))?;
+    let upcoming = load_upcoming_events(now, Duration::days(FORECAST_DAYS))?;
 
     let mut byday: HashMap<Date<Utc>, Vec<Event>> = HashMap::default();
     for event in upcoming {
@@ -75,7 +78,7 @@ fn view() -> Result<(), Error> {
         events.push(event);
     }
 
-    for i in 0..forecast_days {
+    for i in 0..FORECAST_DAYS {
         let date = (now + Duration::days(i)).date();
         let date_str = date.format("%a %b %e").to_string().bold();
         if i == 0 {
@@ -122,7 +125,7 @@ fn view() -> Result<(), Error> {
 /// Send a reminder for events starting in the next 10 minutes.
 fn remind(reminded: &mut HashSet<String>) -> Result<(), Error> {
     let now = Utc::now();
-    let upcoming = load_upcoming_events(now, Duration::minutes(10))?;
+    let upcoming = load_upcoming_events(now, Duration::minutes(REMINDER_MINUTES))?;
     for event in upcoming {
         let id = event.id();
         if !reminded.contains(&id) {
@@ -145,7 +148,7 @@ fn main() -> Result<(), Error> {
             let mut reminded = HashSet::new();
             loop {
                 remind(&mut reminded)?;
-                std::thread::sleep(std::time::Duration::new(60, 0));
+                std::thread::sleep(std::time::Duration::new(REMINDER_REFRESH, 0));
             }
         },
         _ => {
