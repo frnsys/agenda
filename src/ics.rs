@@ -3,7 +3,6 @@ use std::path::Path;
 use std::io::BufReader;
 use ical::IcalParser;
 use rrule::RRuleSet;
-use anyhow::Error;
 use thiserror::Error;
 use chrono_tz::{Tz, UTC};
 use chrono::{DateTime, TimeZone, Utc, Local};
@@ -20,7 +19,6 @@ fn get_tz(maybe_params: &Option<Vec<(String, Vec<String>)>>) -> Option<String> {
     None
 }
 
-
 #[derive(Error, Debug)]
 pub enum DateTimeParseError {
     #[error("Failed to parse date component")]
@@ -29,7 +27,6 @@ pub enum DateTimeParseError {
     #[error("Failed to parse datetime")]
     ParseDateTime(#[from] chrono::format::ParseError),
 }
-
 
 pub fn parse_datetime(datetime: &str, time_zone: Option<String>) -> Result<DateTime<Utc>, DateTimeParseError> {
     let is_utc = datetime.chars().last().unwrap() == 'Z';
@@ -62,17 +59,18 @@ pub fn parse_datetime(datetime: &str, time_zone: Option<String>) -> Result<DateT
 }
 
 // TODO iterator of results
-pub fn parse_ics<P>(ics_path: P) -> Result<Vec<Event>, Error> where P: AsRef<Path> {
+pub fn parse_ics<P>(ics_path: P) -> Result<Vec<Event>, anyhow::Error> where P: AsRef<Path> {
     let file = File::open(ics_path)?;
     let buf = BufReader::new(file);
     let reader = IcalParser::new(buf);
 
-    let mut events = Vec::new();
+    let mut events: Vec<Event> = Vec::new();
     for line in reader {
         for ev in line?.events {
             let mut event = Event::default();
             for prop in ev.properties {
                 match prop.name.as_ref() {
+                    "UID" => event.id = prop.value.unwrap(),
                     "DESCRIPTION" => event.description = prop.value,
                     "SUMMARY" => event.summary = prop.value,
                     "LOCATION" => event.location = prop.value,
@@ -100,17 +98,16 @@ pub fn parse_ics<P>(ics_path: P) -> Result<Vec<Event>, Error> where P: AsRef<Pat
                         }
                     },
                     "RECURRENCE-ID" => {
-                        // TODO how to link back to the original event?
-                        let dt_str = prop.value.unwrap();
-                        let r_date = parse_datetime(&dt_str, get_tz(&prop.params))?;
-                        match &mut event.rrule {
-                            Some(rrule) => rrule.rdate(r_date.with_timezone(&UTC)),
-                            None => {
-                                // TODO the problem right now is these show up as events
-                                // separate from the event that has the actual rrule attached to
-                                // it.
-                                // println!("NO MATCHING RULE");
-                            }
+                        match events.iter_mut().find(|ev| ev.id == event.id) {
+                            Some(orig_event) => {
+                                let dt_str = prop.value.unwrap();
+                                let r_date = parse_datetime(&dt_str, get_tz(&prop.params))?;
+                                match &mut orig_event.rrule {
+                                    Some(rrule) => rrule.rdate(r_date.with_timezone(&UTC)),
+                                    None => () // Just treat it as its own event
+                                }
+                            },
+                            None => () // Just treat it as its own event
                         }
                     },
                     _ => ()

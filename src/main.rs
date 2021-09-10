@@ -98,6 +98,7 @@ fn view() -> Result<(), Error> {
             Some(events) => {
                 for event in events {
                     // Print out single event
+                    // println!("{}", Colour::Red.paint(&event.id));
                     if (event.end - event.start).num_hours() == 24 {
                         println!("{}", Colour::Green.paint("All Day"));
                     } else {
@@ -139,13 +140,12 @@ fn remind(reminded: &mut HashSet<String>) -> Result<(), Error> {
     let now = Utc::now();
     let upcoming = load_upcoming_events(now, Duration::minutes(REMINDER_MINUTES))?;
     for event in upcoming {
-        let id = event.id();
-        if !reminded.contains(&id) {
+        if !reminded.contains(&event.id) {
             Command::new("notify-send")
                 .arg(&event.start.with_timezone(&Local).format("%H:%M").to_string())
                 .arg(&event.summary.unwrap_or("<none>".to_string()))
                 .spawn()?;
-            reminded.insert(id);
+            reminded.insert(event.id);
         }
     }
     Ok(())

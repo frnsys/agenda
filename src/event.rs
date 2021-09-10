@@ -4,6 +4,7 @@ use chrono::{DateTime, Duration, TimeZone, Utc};
 
 #[derive(Debug)]
 pub struct Event {
+    pub id: String,
     pub summary: Option<String>,
     pub location: Option<String>,
     pub description: Option<String>,
@@ -15,6 +16,7 @@ pub struct Event {
 impl Event {
     pub fn default() -> Event {
         Event {
+            id: "".to_string(),
             summary: None,
             location: None,
             description: None,
@@ -26,11 +28,6 @@ impl Event {
 
     pub fn duration(&self) -> Duration {
         self.end - self.start
-    }
-
-    pub fn id(&self) -> String {
-        format!("{}{}{}", self.start, self.end,
-                self.summary.as_ref().unwrap_or(&"<none>".to_string()))
     }
 }
 
@@ -53,7 +50,7 @@ impl PartialOrd for Event {
 
 impl PartialEq for Event {
     fn eq(&self, other: &Self) -> bool {
-        self.summary == other.summary && self.start == other.start && self.end == other.end
+        self.id == other.id
     }
 }
 impl Eq for Event {}
