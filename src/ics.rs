@@ -68,6 +68,7 @@ pub fn parse_ics<P>(ics_path: P) -> Result<Vec<Event>, anyhow::Error> where P: A
     for line in reader {
         for ev in line?.events {
             let mut event = Event::default();
+            let mut dtstart = None; // For RRULEs
             for prop in ev.properties {
                 match prop.name.as_ref() {
                     "UID" => event.id = prop.value.unwrap(),
@@ -77,6 +78,13 @@ pub fn parse_ics<P>(ics_path: P) -> Result<Vec<Event>, anyhow::Error> where P: A
                     "DTSTART" => {
                         let dt_str = prop.value.unwrap();
                         event.start = parse_datetime(&dt_str, get_tz(&prop.params))?;
+
+                        // Reconstruct raw DTSTART line for use in RRULE
+                        dtstart = if let Some(tzid) = get_tz(&prop.params) {
+                            Some(format!("TZID={}:{}", tzid, dt_str))
+                        } else {
+                            Some(format!(":{}", dt_str))
+                        };
                     },
                     "DTEND" => {
                         let dt_str = prop.value.unwrap();
@@ -85,8 +93,7 @@ pub fn parse_ics<P>(ics_path: P) -> Result<Vec<Event>, anyhow::Error> where P: A
                     "RRULE" => {
                         // Kind of hacky, but the `rrule` crate doesn't provide
                         // a cleaner way of mixing string parsing and manually setting options.
-                        let dtstart = event.start.format("%Y%m%dT%H%M%SZ").to_string();
-                        let rrule_str = format!("DTSTART:{}\n{}", dtstart, prop.value.unwrap());
+                        let rrule_str = format!("DTSTART;{}\n{}", dtstart.clone().unwrap(), prop.value.unwrap());
                         let rrule: RRuleSet = rrule_str.parse()?;
                         event.rrule = Some(rrule);
                     },
