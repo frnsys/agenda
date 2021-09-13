@@ -66,11 +66,11 @@ fn load_upcoming_events(since: DateTime<Utc>, forecast: Duration) -> Result<Vec<
 
 
 /// View upcoming events for the next 5 days.
-fn view() -> Result<(), Error> {
+fn view(days: i64) -> Result<(), Error> {
     // Treat "now" as the start of today (local time, but as UTC),
     // b/c if we're e.g. 1 minute into an event we still want to see it
     let now = Local::today().and_hms(0, 0, 0).with_timezone(&Utc);
-    let upcoming = load_upcoming_events(now, Duration::days(FORECAST_DAYS))?;
+    let upcoming = load_upcoming_events(now, Duration::days(days))?;
 
     let mut byday: HashMap<Date<Utc>, Vec<Event>> = HashMap::default();
     for event in upcoming {
@@ -82,7 +82,7 @@ fn view() -> Result<(), Error> {
         Colour::RGB(36, 34, 186)).fg(Colour::RGB(255,255,255));
     let summary_style = Style::new().underline();
     let desc_style = Style::new().fg(Colour::RGB(191, 190, 212));
-    for i in 0..FORECAST_DAYS {
+    for i in 0..days {
         let date = (now + Duration::days(i)).date();
         let date_str = date.format("%a %b %e").to_string();
         let date_str = if i == 0 {
@@ -135,10 +135,10 @@ fn view() -> Result<(), Error> {
 }
 
 
-/// Send a reminder for events starting in the next 10 minutes.
-fn remind(reminded: &mut HashSet<String>) -> Result<(), Error> {
+/// Send a reminder for events starting in the next n minutes.
+fn remind(reminded: &mut HashSet<String>, remind_before: Duration) -> Result<(), Error> {
     let now = Utc::now();
-    let upcoming = load_upcoming_events(now, Duration::minutes(REMINDER_MINUTES))?;
+    let upcoming = load_upcoming_events(now, remind_before)?;
     for event in upcoming {
         if !reminded.contains(&event.id) {
             Command::new("notify-send")
@@ -152,15 +152,22 @@ fn remind(reminded: &mut HashSet<String>) -> Result<(), Error> {
 }
 
 fn main() -> Result<(), Error> {
-    let cmd = std::env::args().nth(1).expect("No command specified. Use 'view' or 'remind'.");
+    let mut args = std::env::args();
+    let cmd = args.nth(1).expect("No command specified. Use 'view' or 'remind'.");
 
     match cmd.as_str() {
-        "view" => view()?,
+        "view" => {
+            let days = args.nth(0).and_then(|v| v.parse().ok()).unwrap_or(FORECAST_DAYS);
+            view(days)?
+        },
         "remind" => {
             let mut reminded = HashSet::new();
+            let remind_mins = args.nth(0).and_then(|v| v.parse().ok()).unwrap_or(REMINDER_MINUTES);
+            let remind_before = Duration::minutes(remind_mins);
+            let sleep_dur = std::time::Duration::new(REMINDER_REFRESH, 0);
             loop {
-                remind(&mut reminded)?;
-                std::thread::sleep(std::time::Duration::new(REMINDER_REFRESH, 0));
+                remind(&mut reminded, remind_before)?;
+                std::thread::sleep(sleep_dur);
             }
         },
         _ => {

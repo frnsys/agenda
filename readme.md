@@ -2,8 +2,8 @@
 
 ```
 # See agenda for next 5 days
-agenda view
+agenda view 5
 
 # Send reminder notifications for events starting in the next 10 minutes
-agenda remind
+agenda remind 10
 ```
