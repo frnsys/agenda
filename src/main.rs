@@ -98,7 +98,7 @@ fn view(days: i64) -> Result<(), Error> {
             Some(events) => {
                 for event in events {
                     // Print out single event
-                    println!("{}", Color::Red.paint(&event.id));
+                    // println!("{}", Color::Red.paint(&event.id));
                     if (event.end - event.start).num_hours() == 24 {
                         println!("{}", Color::Green.paint("All Day"));
                     } else {
