@@ -58,6 +58,22 @@ pub fn parse_datetime(datetime: &str, time_zone: Option<String>) -> Result<DateT
     }
 }
 
+/// Reconstruct raw DTSTART line for use in RRULE
+pub fn reconstruct_datetime(datetime: &DateTime<Utc>, time_zone: Option<String>) -> String {
+    let tz: Tz = match time_zone {
+        Some(tz) => tz.parse().unwrap(),
+        None => UTC // default to UTC
+    };
+    let dt = datetime.with_timezone(&tz);
+    if tz == UTC {
+        dt.format(":%Y%m%dT%H%M%SZ").to_string()
+    } else {
+        dt.format(
+            &format!(";TZID={}:%Y%m%dT%H%M%S", tz)).to_string()
+    }
+}
+
+
 // TODO iterator of results
 pub fn parse_ics<P>(ics_path: P) -> Result<Vec<Event>, anyhow::Error> where P: AsRef<Path> {
     let file = File::open(ics_path)?;
@@ -80,11 +96,7 @@ pub fn parse_ics<P>(ics_path: P) -> Result<Vec<Event>, anyhow::Error> where P: A
                         event.start = parse_datetime(&dt_str, get_tz(&prop.params))?;
 
                         // Reconstruct raw DTSTART line for use in RRULE
-                        dtstart = if let Some(tzid) = get_tz(&prop.params) {
-                            Some(format!("TZID={}:{}", tzid, dt_str))
-                        } else {
-                            Some(format!(":{}", dt_str))
-                        };
+                        dtstart = Some(reconstruct_datetime(&event.start, get_tz(&prop.params)));
                     },
                     "DTEND" => {
                         let dt_str = prop.value.unwrap();
@@ -93,7 +105,7 @@ pub fn parse_ics<P>(ics_path: P) -> Result<Vec<Event>, anyhow::Error> where P: A
                     "RRULE" => {
                         // Kind of hacky, but the `rrule` crate doesn't provide
                         // a cleaner way of mixing string parsing and manually setting options.
-                        let rrule_str = format!("DTSTART;{}\n{}", dtstart.clone().unwrap(), prop.value.unwrap());
+                        let rrule_str = format!("DTSTART{}\n{}", dtstart.clone().unwrap(), prop.value.unwrap());
                         let rrule: RRuleSet = rrule_str.parse()?;
                         event.rrule = Some(rrule);
                     },
