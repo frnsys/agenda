@@ -9,7 +9,7 @@ use chrono::{DateTime, Date, Duration, Utc, Local, Datelike};
 use chrono_tz::UTC;
 use std::process::Command;
 use std::collections::{HashSet,HashMap};
-use ansi_term::{Colour,Style};
+use ansi_term::{Color,Style};
 
 const FORECAST_DAYS: i64 = 5;
 const REMINDER_MINUTES: i64 = 10;
@@ -79,9 +79,9 @@ fn view(days: i64) -> Result<(), Error> {
     }
 
     let date_style = Style::new().on(
-        Colour::RGB(36, 34, 186)).fg(Colour::RGB(255,255,255));
+        Color::RGB(36, 34, 186)).fg(Color::RGB(255,255,255));
     let summary_style = Style::new().underline();
-    let desc_style = Style::new().fg(Colour::RGB(191, 190, 212));
+    let desc_style = Style::new().fg(Color::RGB(191, 190, 212));
     for i in 0..days {
         let date = (now + Duration::days(i)).date();
         let date_str = date.format("%a %b %e").to_string();
@@ -98,9 +98,9 @@ fn view(days: i64) -> Result<(), Error> {
             Some(events) => {
                 for event in events {
                     // Print out single event
-                    // println!("{}", Colour::Red.paint(&event.id));
+                    println!("{}", Color::Red.paint(&event.id));
                     if (event.end - event.start).num_hours() == 24 {
-                        println!("{}", Colour::Green.paint("All Day"));
+                        println!("{}", Color::Green.paint("All Day"));
                     } else {
                         let start_str = event.start.with_timezone(&Local).format("%H:%M");
                         let end_str_fmt = if event.start.day() == event.end.day() {
@@ -110,8 +110,8 @@ fn view(days: i64) -> Result<(), Error> {
                         };
                         let end_str = event.end.with_timezone(&Local).format(end_str_fmt);
                         println!("{} - {}",
-                                 Colour::Green.paint(start_str.to_string()),
-                                 Colour::Green.paint(end_str.to_string()));
+                                 Color::Green.paint(start_str.to_string()),
+                                 Color::Green.paint(end_str.to_string()));
                     }
                     if let Some(summary) = &event.summary {
                         println!("{}", summary_style.paint(summary));
