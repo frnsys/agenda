@@ -69,12 +69,12 @@ fn load_upcoming_events(since: DateTime<Utc>, forecast: Duration) -> Result<Vec<
 fn view(days: i64) -> Result<(), Error> {
     // Treat "now" as the start of today (local time, but as UTC),
     // b/c if we're e.g. 1 minute into an event we still want to see it
-    let now = Local::today().and_hms(0, 0, 0).with_timezone(&Utc);
-    let upcoming = load_upcoming_events(now, Duration::days(days))?;
+    let now = Local::today().and_hms(0, 0, 0);
+    let upcoming = load_upcoming_events(now.with_timezone(&Utc), Duration::days(days))?;
 
-    let mut byday: HashMap<Date<Utc>, Vec<Event>> = HashMap::default();
+    let mut byday: HashMap<Date<Local>, Vec<Event>> = HashMap::default();
     for event in upcoming {
-        let events = byday.entry(event.start.date()).or_insert(vec![]);
+        let events = byday.entry(event.start.with_timezone(&Local).date()).or_insert(vec![]);
         events.push(event);
     }
 
