@@ -12,6 +12,8 @@ anyhow = "1.0.40"
 thiserror = "1.0.24"
 rrule = "0.5.9"
 ansi_term = "0.12"
+ureq = "2.7.1"
+expanduser = "1.2.2"
 
 [dependencies.ical]
 version = "0.7.0"
