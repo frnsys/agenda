@@ -1,6 +1,13 @@
 mod event;
 mod ics;
 
+use std::{
+    collections::{HashMap, HashSet},
+    fs::{self, File},
+    path::Path,
+    process::Command,
+};
+
 use ansi_term::{Color, Style};
 use anyhow::Error;
 use chrono::{Date, DateTime, Datelike, Duration, Local, Utc};
@@ -8,20 +15,16 @@ use chrono_tz::UTC;
 use event::Event;
 use expanduser::expanduser;
 use ics::parse_ics;
-use std::collections::{HashMap, HashSet};
-use std::fs::{self, File};
-use std::path::Path;
-use std::process::Command;
 
 const FORECAST_DAYS: i64 = 5;
 const REMINDER_MINUTES: i64 = 10;
 const REMINDER_REFRESH: u64 = 120; // seconds
+const UPDATE_EVERY: u64 = 5; // update every n reminder refresh intervals
 
 fn load_events() -> Result<Vec<Event>, Error> {
     let mut events = vec![];
     let cals_path = expanduser("~/.config/agenda").unwrap();
-    println!("cals_path {:?}", cals_path);
-    for path in fs::read_dir(&cals_path)? {
+    for path in fs::read_dir(cals_path)? {
         let path = path?.path();
         if let Some(ext) = path.extension() {
             if ext == "ics" {
@@ -80,7 +83,7 @@ fn view(days: i64) -> Result<(), Error> {
     for event in upcoming {
         let events = byday
             .entry(event.start.with_timezone(&Local).date())
-            .or_insert(vec![]);
+            .or_default();
         events.push(event);
     }
 
@@ -217,7 +220,13 @@ fn main() -> Result<(), Error> {
                 .unwrap_or(REMINDER_MINUTES);
             let remind_before = Duration::minutes(remind_mins);
             let sleep_dur = std::time::Duration::new(REMINDER_REFRESH, 0);
+            let mut refresh_count = 0;
             loop {
+                refresh_count += 1;
+                if refresh_count % UPDATE_EVERY == 0 {
+                    refresh();
+                    refresh_count = 0;
+                }
                 remind(&mut reminded, remind_before)?;
                 std::thread::sleep(sleep_dur);
             }

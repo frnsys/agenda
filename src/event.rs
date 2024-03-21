@@ -1,6 +1,7 @@
-use rrule::RRuleSet;
-use std::cmp::{Ordering, Ord};
+use std::cmp::Ordering;
+
 use chrono::{DateTime, Duration, TimeZone, Utc};
+use rrule::RRuleSet;
 
 #[derive(Debug)]
 pub struct Event {
@@ -10,7 +11,7 @@ pub struct Event {
     pub description: Option<String>,
     pub start: DateTime<Utc>,
     pub end: DateTime<Utc>,
-    pub rrule: Option<RRuleSet>
+    pub rrule: Option<RRuleSet>,
 }
 
 impl Event {
@@ -22,7 +23,7 @@ impl Event {
             description: None,
             start: Utc.timestamp(0, 0),
             end: Utc.timestamp(0, 0),
-            rrule: None
+            rrule: None,
         }
     }
 
