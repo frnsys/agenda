@@ -3,17 +3,17 @@ mod ics;
 
 use std::{
     collections::{HashMap, HashSet},
-    fs::{self, File},
     path::Path,
     process::Command,
 };
 
 use ansi_term::{Color, Style};
-use anyhow::Error;
-use chrono::{Date, DateTime, Datelike, Duration, Local, Utc};
+use anyhow::{Context, Result};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime, Utc};
 use chrono_tz::UTC;
 use event::Event;
 use expanduser::expanduser;
+use fs_err::{self as fs, File};
 use ics::parse_ics;
 
 const FORECAST_DAYS: i64 = 5;
@@ -21,9 +21,10 @@ const REMINDER_MINUTES: i64 = 10;
 const REMINDER_REFRESH: u64 = 120; // seconds
 const UPDATE_EVERY: u64 = 5; // update every n reminder refresh intervals
 
-fn load_events() -> Result<Vec<Event>, Error> {
+/// Read all events from local ics files.
+fn load_events() -> Result<Vec<Event>> {
     let mut events = vec![];
-    let cals_path = expanduser("~/.config/agenda").unwrap();
+    let cals_path = expanduser("~/.config/agenda")?;
     for path in fs::read_dir(cals_path)? {
         let path = path?.path();
         if let Some(ext) = path.extension() {
@@ -35,10 +36,11 @@ fn load_events() -> Result<Vec<Event>, Error> {
     Ok(events)
 }
 
-fn load_upcoming_events(since: DateTime<Utc>, forecast: Duration) -> Result<Vec<Event>, Error> {
+/// Load upcoming events relative to `since`, within `horizon`.
+fn load_upcoming_events(since: DateTime<Utc>, horizon: Duration) -> Result<Vec<Event>> {
     let events = load_events()?;
 
-    let end = since + forecast;
+    let end = since + horizon;
     let mut upcoming: Vec<Event> = events
         .into_iter()
         .filter_map(|mut event| {
@@ -68,21 +70,23 @@ fn load_upcoming_events(since: DateTime<Utc>, forecast: Duration) -> Result<Vec<
         })
         .collect();
     upcoming.sort();
-    upcoming.dedup(); // TODO not sure why duplicates occur?
+    upcoming.dedup();
     Ok(upcoming)
 }
 
-/// View upcoming events for the next 5 days.
-fn view(days: i64) -> Result<(), Error> {
+/// View upcoming events for the next `days` days.
+fn view(days: i64) -> Result<()> {
     // Treat "now" as the start of today (local time, but as UTC),
     // b/c if we're e.g. 1 minute into an event we still want to see it
-    let now = Local::today().and_hms(0, 0, 0);
+    let now = Local::now()
+        .with_time(NaiveTime::from_hms_opt(0, 0, 0).expect("Valid"))
+        .unwrap();
     let upcoming = load_upcoming_events(now.with_timezone(&Utc), Duration::days(days))?;
 
-    let mut byday: HashMap<Date<Local>, Vec<Event>> = HashMap::default();
+    let mut byday: HashMap<NaiveDate, Vec<Event>> = HashMap::default();
     for event in upcoming {
         let events = byday
-            .entry(event.start.with_timezone(&Local).date())
+            .entry(event.start.with_timezone(&Local).date_naive())
             .or_default();
         events.push(event);
     }
@@ -93,7 +97,7 @@ fn view(days: i64) -> Result<(), Error> {
     let summary_style = Style::new().underline();
     let desc_style = Style::new().fg(Color::RGB(191, 190, 212));
     for i in 0..days {
-        let date = (now + Duration::days(i)).date();
+        let date = (now + Duration::days(i)).date_naive();
         let date_str = date.format("%a %b %e").to_string();
         let date_str = if i == 0 {
             format!("{}\tToday", date_str)
@@ -108,7 +112,6 @@ fn view(days: i64) -> Result<(), Error> {
             Some(events) => {
                 for event in events {
                     // Print out single event
-                    // println!("{}", Color::Red.paint(&event.id));
                     if (event.end - event.start).num_hours() == 24 {
                         println!("{}", Color::Green.paint("All Day"));
                     } else {
@@ -147,20 +150,20 @@ fn view(days: i64) -> Result<(), Error> {
 }
 
 /// Send a reminder for events starting in the next n minutes.
-fn remind(reminded: &mut HashSet<String>, remind_before: Duration) -> Result<(), Error> {
+fn remind(reminded: &mut HashSet<String>, remind_before: Duration) -> Result<()> {
     let now = Utc::now();
     let upcoming = load_upcoming_events(now, remind_before)?;
     for event in upcoming {
         if !reminded.contains(&event.id) {
             Command::new("notify-send")
                 .arg(
-                    &event
+                    event
                         .start
                         .with_timezone(&Local)
                         .format("%H:%M")
                         .to_string(),
                 )
-                .arg(&event.summary.unwrap_or("<none>".to_string()))
+                .arg(event.summary.unwrap_or("<none>".to_string()))
                 .spawn()?;
             reminded.insert(event.id);
         }
@@ -169,36 +172,36 @@ fn remind(reminded: &mut HashSet<String>, remind_before: Duration) -> Result<(),
 }
 
 /// Download a file
-fn download(url: &str, path: &Path) -> Result<(), String> {
+fn download(url: &str, path: &Path) -> Result<()> {
     let resp = ureq::get(url)
         .call()
-        .or(Err(format!("Failed to GET from '{}'", &url)))?;
+        .with_context(|| format!("Failed to GET from '{}'", &url))?;
 
-    let mut file =
-        File::create(path).or(Err(format!("Failed to create file '{}'", path.display())))?;
+    let mut file = File::create(path)?;
     std::io::copy(&mut resp.into_reader(), &mut file)
-        .or(Err("Error while downloading and writing file"))?;
+        .with_context(|| "Error while downloading and writing file")?;
 
     Ok(())
 }
 
 /// Re-download the iCal files.
-fn refresh() {
-    let config_path = expanduser("~/.config/agenda/calendars").unwrap();
-    let contents = fs::read_to_string(&config_path)
-        .unwrap_or_else(|_| format!("Couldn't read file: {:?}", &config_path));
+fn refresh() -> Result<()> {
+    let dir = expanduser("~/.config/agenda")?;
+    let config_path = dir.join("calendars");
+    let contents = fs::read_to_string(&config_path)?;
     for line in contents.lines() {
         if line.is_empty() {
             continue;
         }
 
         let (name, url) = line.split_once(';').unwrap();
-        let path = expanduser(format!("~/.config/agenda/{}.ics", name)).unwrap();
-        download(url, &path).unwrap();
+        let path = dir.join(format!("{name}.ics"));
+        download(url, &path)?;
     }
+    Ok(())
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<()> {
     let mut args = std::env::args();
     let cmd = args
         .nth(1)
@@ -224,7 +227,7 @@ fn main() -> Result<(), Error> {
             loop {
                 refresh_count += 1;
                 if refresh_count % UPDATE_EVERY == 0 {
-                    refresh();
+                    refresh()?;
                     refresh_count = 0;
                 }
                 remind(&mut reminded, remind_before)?;
@@ -233,7 +236,7 @@ fn main() -> Result<(), Error> {
         }
         "refresh" => {
             println!("Updating calendars...");
-            refresh();
+            refresh()?;
             println!("Calendars updated.");
         }
         _ => {

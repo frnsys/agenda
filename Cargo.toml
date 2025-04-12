@@ -1,19 +1,17 @@
 [package]
 name = "agenda"
-version = "0.1.0"
-edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+version = "1.0.0"
+edition = "2024"
 
 [dependencies]
-chrono = "0.4.19"
+chrono = "0.4.40"
 chrono-tz = "0.5.3"
-anyhow = "1.0.40"
-thiserror = "1.0.24"
+anyhow = "1.0.97"
 rrule = "0.5.9"
 ansi_term = "0.12"
-ureq = "2.7.1"
+ureq = "2.12.1"
 expanduser = "1.2.2"
+fs-err = "3.1.0"
 
 [dependencies.ical]
 version = "0.7.0"

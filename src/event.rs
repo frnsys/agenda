@@ -21,8 +21,8 @@ impl Event {
             summary: None,
             location: None,
             description: None,
-            start: Utc.timestamp(0, 0),
-            end: Utc.timestamp(0, 0),
+            start: Utc.timestamp_opt(0, 0).unwrap(),
+            end: Utc.timestamp_opt(0, 0).unwrap(),
             rrule: None,
         }
     }
