@@ -27,10 +27,10 @@ fn load_events() -> Result<Vec<Event>> {
     let cals_path = expanduser("~/.config/agenda")?;
     for path in fs::read_dir(cals_path)? {
         let path = path?.path();
-        if let Some(ext) = path.extension() {
-            if ext == "ics" {
-                events.extend(parse_ics(path)?);
-            }
+        if let Some(ext) = path.extension()
+            && ext == "ics"
+        {
+            events.extend(parse_ics(path)?);
         }
     }
     Ok(events)
@@ -47,14 +47,14 @@ fn load_upcoming_events(since: DateTime<Utc>, horizon: Duration) -> Result<Vec<E
             match &event.rrule {
                 Some(rrule) => {
                     let next = rrule.after(since.with_timezone(&UTC), true);
-                    if let Some(next_occur) = next {
-                        if next_occur <= end.with_timezone(&UTC) {
-                            // Change event start to the next occurrence
-                            let duration = event.duration();
-                            event.start = next_occur.with_timezone(&Utc);
-                            event.end = event.start + duration;
-                            return Some(event);
-                        }
+                    if let Some(next_occur) = next
+                        && next_occur <= end.with_timezone(&UTC)
+                    {
+                        // Change event start to the next occurrence
+                        let duration = event.duration();
+                        event.start = next_occur.with_timezone(&Utc);
+                        event.end = event.start + duration;
+                        return Some(event);
                     }
                     None
                 }

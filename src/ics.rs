@@ -122,16 +122,12 @@ where
                         }
                     }
                     "RECURRENCE-ID" => {
-                        match events.iter_mut().find(|ev| ev.id == event.id) {
-                            Some(orig_event) => {
-                                let dt_str = prop.value.unwrap();
-                                let r_date = parse_datetime(&dt_str, get_tz(&prop.params))?;
-                                match &mut orig_event.rrule {
-                                    Some(rrule) => rrule.rdate(r_date.with_timezone(&UTC)),
-                                    None => (), // Just treat it as its own event
-                                }
+                        if let Some(orig_event) = events.iter_mut().find(|ev| ev.id == event.id) {
+                            let dt_str = prop.value.unwrap();
+                            let r_date = parse_datetime(&dt_str, get_tz(&prop.params))?;
+                            if let Some(rrule) = &mut orig_event.rrule {
+                                rrule.rdate(r_date.with_timezone(&UTC));
                             }
-                            None => (), // Just treat it as its own event
                         }
                     }
                     _ => (),

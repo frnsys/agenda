@@ -4,14 +4,14 @@ version = "1.0.0"
 edition = "2024"
 
 [dependencies]
-chrono = "0.4.40"
+chrono = "0.4.41"
 chrono-tz = "0.5.3"
-anyhow = "1.0.97"
+anyhow = "1.0.99"
 rrule = "0.5.9"
 ansi_term = "0.12"
 ureq = "2.12.1"
 expanduser = "1.2.2"
-fs-err = "3.1.0"
+fs-err = "3.1.1"
 
 [dependencies.ical]
 version = "0.7.0"
